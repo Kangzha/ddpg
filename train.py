@@ -265,20 +265,23 @@ class robot_env:
 
             angular_punish_reward = 0
             linear_punish_reward = 0
+            angle_diff_reward = 0
             if angular_z >0.6 or angular_z < -0.6:
                 angular_punish_reward = -1
                 rospy.loginfo("angular_punish_reward:%f", angular_punish_reward)
             if linear_x < 0.2:
                 linear_punish_reward = -2
                 rospy.loginfo("linear_punish_reward:%f", linear_punish_reward)
+            if angle_diff < 0.5 and angle_diff > -0.5:
+                angle_diff_reward = 2
             arrive_reward = 0
-            if current_distance_robot_target < 3.5:
+            if current_distance_robot_target < 1:
                 arrive_reward = 100
                 rospy.loginfo("arrive_reward:%f", arrive_reward)
                 done = 1
                 done = np.array(done)
                 done = torch.from_numpy(done)
-            reward = distance_reward*(10/time_step)*8.4 + arrive_reward + collision_reward + angular_punish_reward + linear_punish_reward
+            reward = distance_reward*(10/time_step)*8.4 + angle_diff_reward + arrive_reward + collision_reward + angular_punish_reward + linear_punish_reward
             #reward = distance_reward + arrive_reward + collision_reward + angular_punish_reward + linear_punish_reward
 
             
@@ -286,12 +289,12 @@ class robot_env:
 
         def update_actor_net(self, state):
             cur_action = self.actor_net(state)
-            #cur_sa = torch.cat((state, cur_action), dim=1)
-            cur_sa = torch.cat((state, cur_action), dim=0)
+            cur_sa = torch.cat((state, cur_action), dim=1)
+            #cur_sa = torch.cat((state, cur_action), dim=0)
             self.disable_gradient(self.critic_net)
             a = self.critic_net(cur_sa)
-            #loss = -1.0 * torch.mean(a)
-            loss = -1.0 * a
+            loss = -1.0 * torch.mean(a)
+            #loss = -1.0 * a
             
             self.optimizer_actor.zero_grad()
             loss.backward()
@@ -300,13 +303,13 @@ class robot_env:
             return loss.item()
 
         def update_critic_net(self, cur_reward, next_state, laser_crashed_value, sa):           
-            #cur_critic_value = np.squeeze(self.critic_net(sa)) 
-            cur_critic_value = self.critic_net(sa)          
+            cur_critic_value = np.squeeze(self.critic_net(sa)) 
+            #cur_critic_value = self.critic_net(sa)          
             next_action = self.target_actor_net(next_state)
-            #next_sa = torch.cat((next_state, next_action), dim=1)
-            next_sa = torch.cat((next_state, next_action), dim=0)
-            #target_next_critic_value = np.squeeze(self.target_critic_net(next_sa))
-            target_next_critic_value = self.target_critic_net(next_sa)
+            next_sa = torch.cat((next_state, next_action), dim=1)
+            #next_sa = torch.cat((next_state, next_action), dim=0)
+            target_next_critic_value = np.squeeze(self.target_critic_net(next_sa))
+            #target_next_critic_value = self.target_critic_net(next_sa)
             target_critic_value = cur_reward + self.gamma * target_next_critic_value * (1 - laser_crashed_value)
             
             loss = self.loss_fn(cur_critic_value, target_critic_value)           
@@ -382,7 +385,7 @@ class robot_env:
             initial_state = torch.tensor(initial_state,dtype=torch.float)
             return initial_state
 
-'''
+
 if __name__ == '__main__':
         #torch.autograd.set_detect_anomaly(True)
         train_epoch = 100
@@ -427,11 +430,13 @@ if __name__ == '__main__':
                   break
 
             print("this is total_reward%d",total_reward)
-'''        
+ 
+
+'''
 if __name__ == '__main__':
         #torch.autograd.set_detect_anomaly(True)
         train_epoch = 100
-        step_epoch = 200
+        step_epoch = 300
         batch_size = 128
         rospy.init_node("train_ddpg", anonymous=True)
         actor_net = ActorNet(28, 2, hidden1=500, hidden2=500, hidden3=500)
@@ -465,3 +470,5 @@ if __name__ == '__main__':
                   
 
             print("this is total_reward%d",total_reward)
+'''
+
